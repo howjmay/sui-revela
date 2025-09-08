@@ -29,6 +29,7 @@ exclude = [
   "external-crates/move/crates/move-core-types",
   "external-crates/move/crates/move-coverage",
   "external-crates/move/crates/move-disassembler",
+  "external-crates/move/crates/move-decompiler",
   "external-crates/move/crates/move-docgen",
   "external-crates/move/crates/move-ir-compiler",
   "external-crates/move/crates/move-ir-compiler-transactional-tests",
@@ -538,6 +539,7 @@ move-cli = { path = "external-crates/move/crates/move-cli" }
 move-compiler = { path = "external-crates/move/crates/move-compiler" }
 move-core-types = { path = "external-crates/move/crates/move-core-types" }
 move-disassembler = { path = "external-crates/move/crates/move-disassembler" }
+move-decompiler = { path = "external-crates/move/crates/move-decompiler" }
 move-package = { path = "external-crates/move/crates/move-package" }
 move-unit-test = { path = "external-crates/move/crates/move-unit-test" }
 move-vm-config = { path = "external-crates/move/crates/move-vm-config" }

@@ -113,6 +113,11 @@ impl Type {
         matches!(self, Type::TypeParameter(..))
     }
 
+    /// Determines whether this is a primitive.
+    pub fn is_primitive(&self) -> bool {
+        matches!(self, Type::Primitive(_))
+    }
+
     /// Determines whether this is a reference.
     pub fn is_reference(&self) -> bool {
         matches!(self, Type::Reference(_, _))
@@ -1282,12 +1287,21 @@ impl<'a> TypeDisplay<'a> {
                 }
             }
             TypeDisplayContext::WithEnv { env, .. } => {
-                let struct_env = env.get_module(mid).into_struct(sid);
-                format!(
-                    "{}::{}",
-                    struct_env.module_env.get_name().display(env.symbol_pool()),
-                    struct_env.get_name().display(env.symbol_pool())
-                )
+                if let Some(struct_env) = env.get_module(mid).find_struct(sid.symbol()) {
+                    format!(
+                        "{}::{}",
+                        struct_env.module_env.get_name().display(env.symbol_pool()),
+                        struct_env.get_name().display(env.symbol_pool())
+                    )
+                } else if let Some(enum_env) = env.get_module(mid).find_enum(sid.symbol()) {
+                    format!(
+                        "{}::{}",
+                        enum_env.module_env.get_name().display(env.symbol_pool()),
+                        enum_env.get_name().display(env.symbol_pool())
+                    )
+                } else {
+                    "??unknown??".to_string()
+                }
             }
         }
     }

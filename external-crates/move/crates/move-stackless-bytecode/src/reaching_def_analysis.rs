@@ -42,7 +42,7 @@ pub struct ReachingDefState {
 /// The annotation for reaching definitions. For each code position, we have a map of local
 /// indices to the set of definitions reaching the code position.
 #[derive(Default)]
-pub struct ReachingDefAnnotation(BTreeMap<CodeOffset, ReachingDefState>);
+pub struct ReachingDefAnnotation(pub BTreeMap<CodeOffset, ReachingDefState>);
 
 pub struct ReachingDefProcessor {}
 
@@ -268,6 +268,13 @@ impl ReachingDefState {
 
     fn havoc(&mut self, dest: TempIndex) {
         self.havoced.insert(dest);
+    }
+
+    pub fn is_alias(&self, idx: TempIndex) -> bool {
+        if self.havoced.contains(&idx) {
+            return false;
+        }
+        self.map.contains_key(&idx)
     }
 }
 

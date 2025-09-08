@@ -77,6 +77,17 @@ impl<'a> StacklessBytecodeGenerator<'a> {
                     label_map.insert(offs, label);
                 }
             }
+            if let MoveBytecode::VariantSwitch(targets) = bytecode {
+                let JumpTableInner::Full(targets) =
+                    &self.func_env.get_jump_tables()[targets.0 as usize].jump_table;
+                for target in targets {
+                    let offs = *target as CodeOffset;
+                    if label_map.get(&offs).is_none() {
+                        let label = Label::new(label_map.len());
+                        label_map.insert(offs, label);
+                    }
+                }
+            }
             if let MoveBytecode::BrTrue(_) | MoveBytecode::BrFalse(_) = bytecode {
                 let next_offs = (pos + 1) as CodeOffset;
                 if label_map.get(&next_offs).is_none() {
@@ -1442,13 +1453,25 @@ impl<'a> StacklessBytecodeGenerator<'a> {
                     MoveBytecode::UnpackVariantImmRef(_) => Type::Reference(false, Box::new(ty)),
                     MoveBytecode::UnpackVariantMutRef(_) => Type::Reference(true, Box::new(ty)),
                     MoveBytecode::UnpackVariant(_) => ty,
+                    MoveBytecode::UnpackVariantGeneric(_) => ty,
+                    MoveBytecode::UnpackVariantGenericImmRef(_) => {
+                        Type::Reference(false, Box::new(ty))
+                    }
+                    MoveBytecode::UnpackVariantGenericMutRef(_) => {
+                        Type::Reference(true, Box::new(ty))
+                    }
                     _ => unreachable!(),
                 };
                 let ref_type = match bytecode {
                     MoveBytecode::UnpackVariant(_) => RefType::ByValue,
                     MoveBytecode::UnpackVariantImmRef(_) => RefType::ByImmRef,
                     MoveBytecode::UnpackVariantMutRef(_) => RefType::ByMutRef,
-                    _ => unreachable!(),
+                    MoveBytecode::UnpackVariantGeneric(_) => RefType::ByValue,
+                    MoveBytecode::UnpackVariantGenericImmRef(_) => RefType::ByImmRef,
+                    MoveBytecode::UnpackVariantGenericMutRef(_) => RefType::ByMutRef,
+                    _ => {
+                        unreachable!()
+                    }
                 };
                 let variant_temp_index = self.temp_stack.pop().unwrap();
                 for field_env in variant_env.get_fields() {

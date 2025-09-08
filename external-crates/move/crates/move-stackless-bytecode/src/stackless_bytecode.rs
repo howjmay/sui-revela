@@ -537,6 +537,7 @@ impl Bytecode {
                 Branch(attr, if_label, else_label, f(true, cond))
             }
             Abort(attr, cond) => Abort(attr, f(true, cond)),
+            VariantSwitch(atr, v, labels) => VariantSwitch(atr, f(true, v), labels),
             _ => self,
         }
     }

@@ -150,6 +150,7 @@ move-compiler = { path = "crates/move-compiler" }
 move-core-types = { path = "crates/move-core-types" }
 move-coverage = { path = "crates/move-coverage" }
 move-disassembler = { path = "crates/move-disassembler" }
+move-decompiler = { path = "crates/move-decompiler" }
 move-docgen = { path = "crates/move-docgen" }
 move-ir-compiler = { path = "crates/move-ir-compiler" }
 move-ir-to-bytecode = { path = "crates/move-ir-to-bytecode" }

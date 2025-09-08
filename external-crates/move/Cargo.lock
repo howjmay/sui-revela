@@ -1827,6 +1827,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "move-decompiler"
+version = "1.0.1-alpha"
+dependencies = [
+ "anyhow",
+ "bcs",
+ "clap 3.2.25",
+ "codespan",
+ "colored",
+ "datatest-stable",
+ "hex",
+ "itertools",
+ "move-abstract-interpreter",
+ "move-binary-format",
+ "move-bytecode-source-map",
+ "move-command-line-common",
+ "move-compiler",
+ "move-core-types",
+ "move-coverage",
+ "move-ir-types",
+ "move-model",
+ "move-stackless-bytecode",
+ "move-stdlib",
+ "move-symbol-pool",
+ "num",
+ "uuid",
+]
+
+[[package]]
 name = "move-disassembler"
 version = "0.1.0"
 dependencies = [
@@ -3869,6 +3897,15 @@ name = "utf8parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
+
+[[package]]
+name = "uuid"
+version = "1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81dfa00651efa65069b0b6b651f4aaa31ba9e3c3ce0137aaad053604ee7e0314"
+dependencies = [
+ "getrandom 0.2.15",
+]
 
 [[package]]
 name = "valuable"
