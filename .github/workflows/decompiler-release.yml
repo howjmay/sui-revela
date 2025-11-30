@@ -1,0 +1,231 @@
+name: Build Revela Decompiler Release
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'decompiler-v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for the release (e.g., decompiler-v1.0.0)'
+        type: string
+        required: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  RUST_BACKTRACE: short
+
+jobs:
+  build-decompiler:
+    name: Build Decompiler - ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            platform: linux-x86_64
+            extension: ''
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform: windows-x86_64
+            extension: '.exe'
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            platform: macos-x86_64
+            extension: ''
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            platform: macos-arm64
+            extension: ''
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+
+      - name: Install cross-compilation tools (macOS ARM64 on x86_64)
+        if: matrix.target == 'aarch64-apple-darwin' && runner.arch == 'X64'
+        run: |
+          rustup target add aarch64-apple-darwin
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build decompiler (release)
+        run: |
+          cargo build --release --manifest-path external-crates/move/crates/move-decompiler/Cargo.toml --target ${{ matrix.target }} --target-dir ./target
+
+      - name: Prepare release artifacts
+        shell: bash
+        run: |
+          mkdir -p release
+
+          # The binary location depends on whether a target was specified
+          if [ -f "target/${{ matrix.target }}/release/move-decompiler${{ matrix.extension }}" ]; then
+            cp target/${{ matrix.target }}/release/move-decompiler${{ matrix.extension }} release/move-decompiler${{ matrix.extension }}
+          elif [ -f "target/release/move-decompiler${{ matrix.extension }}" ]; then
+            cp target/release/move-decompiler${{ matrix.extension }} release/move-decompiler${{ matrix.extension }}
+          else
+            echo "Error: Binary not found in expected locations"
+            find target -name "move-decompiler${{ matrix.extension }}" -type f
+            exit 1
+          fi
+
+          # Copy README if it exists
+          if [ -f external-crates/move/crates/move-decompiler/README.md ]; then
+            cp external-crates/move/crates/move-decompiler/README.md release/
+          fi
+
+      - name: Create archive
+        shell: bash
+        run: |
+          cd release
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a ../move-decompiler-${{ matrix.platform }}.zip *
+          else
+            tar czf ../move-decompiler-${{ matrix.platform }}.tar.gz *
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: move-decompiler-${{ matrix.platform }}
+          path: |
+            move-decompiler-${{ matrix.platform }}.tar.gz
+            move-decompiler-${{ matrix.platform }}.zip
+          if-no-files-found: ignore
+
+      - name: Determine release tag
+        id: release_tag
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/decompiler-v* ]]; then
+            echo "tag_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "release_name=Revela Decompiler ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          elif [[ -n "${{ github.event.inputs.tag_name }}" ]]; then
+            echo "tag_name=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "release_name=Revela Decompiler ${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag_name=continuous" >> $GITHUB_OUTPUT
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "release_name=Continuous Build (Latest)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_tag.outputs.tag_name }}
+          name: ${{ steps.release_tag.outputs.release_name }}
+          prerelease: ${{ steps.release_tag.outputs.is_prerelease }}
+          files: |
+            move-decompiler-${{ matrix.platform }}.tar.gz
+            move-decompiler-${{ matrix.platform }}.zip
+          body: |
+            **Build Information:**
+            - Commit: ${{ github.sha }}
+            - Branch: ${{ github.ref_name }}
+            - Build Date: ${{ github.event.head_commit.timestamp }}
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-release-description:
+    name: Update Release Description
+    needs: build-decompiler
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine release info
+        id: release_info
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/decompiler-v* ]]; then
+            echo "tag_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "release_name=Revela Decompiler ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          elif [[ -n "${{ github.event.inputs.tag_name }}" ]]; then
+            echo "tag_name=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "release_name=Revela Decompiler ${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag_name=continuous" >> $GITHUB_OUTPUT
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "release_name=Continuous Build (Latest)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update Release with full description
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_info.outputs.tag_name }}
+          name: ${{ steps.release_info.outputs.release_name }}
+          prerelease: ${{ steps.release_info.outputs.is_prerelease }}
+          body: |
+            # Revela Decompiler ${{ steps.release_info.outputs.is_prerelease == 'true' && '- Continuous Build' || 'Release' }}
+
+            Revela is a tool to decompile low-level Move bytecode back to Move source code.
+
+            ## Download
+
+            Choose the archive for your platform below:
+            - **Linux**: `move-decompiler-linux-x86_64.tar.gz`
+            - **Windows**: `move-decompiler-windows-x86_64.zip`
+            - **macOS Intel**: `move-decompiler-macos-x86_64.tar.gz`
+            - **macOS Apple Silicon**: `move-decompiler-macos-arm64.tar.gz`
+
+            ## Usage
+
+            ```bash
+            move-decompiler --bytecode <path_to_bytecode_file>
+            # or
+            move-decompiler -b <path_to_bytecode_file>
+            ```
+
+            ## Installation
+
+            1. Download the appropriate archive for your platform
+            2. Extract the archive: `tar -xzf move-decompiler-*.tar.gz` (or unzip for Windows)
+            3. Run the binary: `./move-decompiler -b <bytecode_file>`
+
+            ## Build Information
+            - **Commit**: ${{ github.sha }}
+            - **Branch**: ${{ github.ref_name }}
+            - **Workflow**: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            ---
+            Designed and implemented by Verichains.
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
